@@ -22,19 +22,20 @@ Takes ~30 seconds. You only need to do this once!
 ## 🔍 Step 2: Dry Run (Preview Changes)
 
 ```bash
+# Using defaults (query="is:unresolved", stats-period="90d")
 ./run.sh \
   --token YOUR_SENTRY_AUTH_TOKEN \
   --org your-org-slug \
-  --project-id 123456 \
-  --query "is:unresolved assigned:@team" \
-  --stats-period "30d"
+  --project-id 123456
 ```
 
 **What this does:**
-- Fetches all issues matching your query
+- Fetches all unresolved issues from the last 90 days (defaults)
 - Compares current assignments with CODEOWNERS
 - Shows which issues are misaligned
 - **Does NOT make any changes** (safe to run)
+
+**Note:** You can customize with `--query` and `--stats-period` if needed.
 
 ---
 
@@ -47,8 +48,6 @@ After reviewing the dry run output, fix the misalignments:
   --token YOUR_SENTRY_AUTH_TOKEN \
   --org your-org-slug \
   --project-id 123456 \
-  --query "is:unresolved assigned:@team" \
-  --stats-period "30d" \
   --no-dry-run
 ```
 
@@ -102,11 +101,11 @@ This issue is assigned to team `111111` but CODEOWNERS says it should be `222222
 
 ## ⚙️ Common Options
 
-| Option | Description | Example |
-|--------|-------------|---------|
-| `--query` | Filter which issues to check | `"is:unresolved"` |
-| `--stats-period` | Time window for issue events | `"7d"`, `"14d"`, `"30d"` |
-| `--no-dry-run` | Actually make changes | (flag, no value) |
+| Option | Description | Default | Example |
+|--------|-------------|---------|---------|
+| `--query` | Filter which issues to check | `"is:unresolved"` | `"is:unresolved assigned:@team"` |
+| `--stats-period` | Time window for issue events | `"90d"` | `"7d"`, `"14d"`, `"30d"` |
+| `--no-dry-run` | Actually make changes | Dry-run mode | (flag, no value) |
 
 ---
 
@@ -150,13 +149,11 @@ After updating CODEOWNERS, some issues might still be assigned to the old (wrong
 # 1. Setup (first time only)
 ./setup.sh
 
-# 2. Preview what would change
-./run.sh --token abc123 --org my-company --project-id 456789 \
-  --query "is:unresolved assigned:@team" --stats-period "30d"
+# 2. Preview what would change (using defaults)
+./run.sh --token abc123 --org my-company --project-id 456789
 
 # 3. Review output, then fix misalignments
-./run.sh --token abc123 --org my-company --project-id 456789 \
-  --query "is:unresolved assigned:@team" --stats-period "30d" --no-dry-run
+./run.sh --token abc123 --org my-company --project-id 456789 --no-dry-run
 
 # Done! ✓
 ```
