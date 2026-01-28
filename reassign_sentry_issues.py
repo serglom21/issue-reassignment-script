@@ -37,7 +37,7 @@ class SentryIssueReassigner:
             'Content-Type': 'application/json'
         })
     
-    def fetch_issues(self, query: str, stats_period: str = "14d") -> List[Dict]:
+    def fetch_issues(self, query: str, stats_period: str = "90d") -> List[Dict]:
         """
         Fetch all issues matching the query with owner information, handling pagination.
         
@@ -199,7 +199,7 @@ class SentryIssueReassigner:
                 print(f"  Response content: {e.response.text}", file=sys.stderr)
             return False
     
-    def reassign_issues(self, query: str, stats_period: str = "14d", dry_run: bool = True) -> tuple:
+    def reassign_issues(self, query: str, stats_period: str = "90d", dry_run: bool = True) -> tuple:
         """
         Reassign all issues that don't match their CODEOWNERS assignment.
         
@@ -383,13 +383,13 @@ Query Examples:
     )
     parser.add_argument(
         '--query',
-        required=True,
-        help='Sentry search query (e.g., "is:unresolved")'
+        default='is:unresolved',
+        help='Sentry search query (default: "is:unresolved")'
     )
     parser.add_argument(
         '--stats-period',
-        default='14d',
-        help='Stats period for the query (default: 14d). Examples: 7d, 14d, 30d'
+        default='90d',
+        help='Stats period for the query (default: 90d). Examples: 7d, 14d, 30d, 90d'
     )
     parser.add_argument(
         '--base-url',

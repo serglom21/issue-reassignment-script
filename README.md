@@ -34,15 +34,20 @@ cd issue-reassignment-script
 ### 2. Run the Script
 
 ```bash
-# Dry run to check for misalignments
+# Dry run to check for misalignments (uses defaults: query="is:unresolved", stats-period="90d")
+./run.sh \
+  --token YOUR_AUTH_TOKEN \
+  --org your-org-slug \
+  --project-id 123456
+
+# Actually fix misalignments
 ./run.sh \
   --token YOUR_AUTH_TOKEN \
   --org your-org-slug \
   --project-id 123456 \
-  --query "is:unresolved assigned:@team" \
-  --stats-period "30d"
+  --no-dry-run
 
-# Actually fix misalignments
+# Or with custom query and stats period
 ./run.sh \
   --token YOUR_AUTH_TOKEN \
   --org your-org-slug \
@@ -72,11 +77,18 @@ pip install -r requirements.txt
 ### Basic Syntax
 
 ```bash
+# Minimal (uses defaults: query="is:unresolved", stats-period="90d")
+python reassign_sentry_issues.py \
+  --token YOUR_AUTH_TOKEN \
+  --org your-org-slug \
+  --project-id 123456
+
+# With custom query and stats period
 python reassign_sentry_issues.py \
   --token YOUR_AUTH_TOKEN \
   --org your-org-slug \
   --project-id 123456 \
-  --query "is:unresolved" \
+  --query "is:unresolved assigned:@team" \
   --stats-period "30d"
 ```
 
@@ -87,8 +99,8 @@ python reassign_sentry_issues.py \
 | `--token` | Yes | Sentry API authentication token |
 | `--org` | Yes | Organization slug |
 | `--project-id` | Yes | Project ID (numeric, not slug) |
-| `--query` | Yes | Sentry search query string |
-| `--stats-period` | No | Stats period for the query (default: `14d`). Examples: `7d`, `14d`, `30d` |
+| `--query` | No | Sentry search query string (default: `"is:unresolved"`) |
+| `--stats-period` | No | Stats period for the query (default: `90d`). Examples: `7d`, `14d`, `30d`, `90d` |
 | `--base-url` | No | Sentry base URL (default: `https://us.sentry.io`) |
 | `--no-dry-run` | No | Actually perform reassignment (default is dry-run) |
 
@@ -140,6 +152,13 @@ For more query syntax, see [Sentry's search documentation](https://docs.sentry.i
 Preview which issues have misaligned assignments without making any changes:
 
 ```bash
+# Using defaults (query="is:unresolved", stats-period="90d")
+python reassign_sentry_issues.py \
+  --token YOUR_AUTH_TOKEN \
+  --org my-org \
+  --project-id 123456
+
+# Or with custom parameters
 python reassign_sentry_issues.py \
   --token YOUR_AUTH_TOKEN \
   --org my-org \
@@ -207,12 +226,11 @@ Would reassign 23 issue(s) to match CODEOWNERS
 Perform the actual reassignment to align with CODEOWNERS:
 
 ```bash
+# Using defaults (query="is:unresolved", stats-period="90d")
 python reassign_sentry_issues.py \
   --token YOUR_AUTH_TOKEN \
   --org my-org \
   --project-id 123456 \
-  --query "is:unresolved" \
-  --stats-period "30d" \
   --no-dry-run
 ```
 
@@ -224,7 +242,6 @@ python reassign_sentry_issues.py \
   --org my-org \
   --project-id 123456 \
   --query "is:unresolved assigned:@team" \
-  --stats-period "7d" \
   --no-dry-run
 ```
 
@@ -235,8 +252,6 @@ python reassign_sentry_issues.py \
   --token YOUR_AUTH_TOKEN \
   --org my-org \
   --project-id 123456 \
-  --query "is:unresolved" \
-  --stats-period "14d" \
   --base-url "https://sentry.mycompany.com" \
   --no-dry-run
 ```
