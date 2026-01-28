@@ -1,14 +1,21 @@
 # Sentry Issue Reassignment Script
 
-A Python script to bulk reassign Sentry issues matching a query to a specific team or user. The script handles pagination automatically and includes a dry-run mode for safe testing.
+A Python script to automatically align Sentry issue assignments with CODEOWNERS definitions. The script detects misalignments between current team assignments and CODEOWNERS, then fixes them automatically. Handles pagination and includes a dry-run mode for safe testing.
+
+## Problem Solved
+
+This script addresses **Case #2**: Issues that report new events post-CODEOWNERS changes but were manually assigned to the wrong team in the past. The script:
+- Compares current team assignments with CODEOWNERS definitions
+- Identifies misaligned issues (where `assignedTo` team ≠ CODEOWNERS team)
+- Automatically reassigns to the correct team per CODEOWNERS
 
 ## Features
 
-- 🔍 **Query-based filtering** - Use Sentry's search syntax to find specific issues
+- 🔍 **CODEOWNERS Integration** - Automatically detects correct assignments from CODEOWNERS
+- 🎯 **Smart Detection** - Only reassigns issues with misalignments
 - 📄 **Automatic pagination** - Handles large result sets automatically
 - 🧪 **Dry-run mode** - Preview what will be reassigned before making changes
-- 👥 **Team and user assignment** - Support for both team and individual user assignment
-- 📊 **Progress tracking** - Real-time progress updates and summary statistics
+- 📊 **Detailed Analysis** - Shows alignment statistics and misalignment details
 - ⚠️ **Error handling** - Graceful error handling with detailed error messages
 
 ## Installation
@@ -28,9 +35,9 @@ pip install -r requirements.txt
 python reassign_sentry_issues.py \
   --token YOUR_AUTH_TOKEN \
   --org your-org-slug \
-  --project your-project-slug \
-  --query "is:unresolved age:+30d" \
-  --assignee "team:123456"
+  --project-id 123456 \
+  --query "is:unresolved" \
+  --stats-period "30d"
 ```
 
 ### Arguments
@@ -39,10 +46,10 @@ python reassign_sentry_issues.py \
 |----------|----------|-------------|
 | `--token` | Yes | Sentry API authentication token |
 | `--org` | Yes | Organization slug |
-| `--project` | Yes | Project slug |
+| `--project-id` | Yes | Project ID (numeric, not slug) |
 | `--query` | Yes | Sentry search query string |
-| `--assignee` | Yes | New assignee in format `team:<team_id>` or `user:<user_id>` |
-| `--base-url` | No | Sentry base URL (default: `https://sentry.io`) |
+| `--stats-period` | No | Stats period for the query (default: `14d`). Examples: `7d`, `14d`, `30d` |
+| `--base-url` | No | Sentry base URL (default: `https://us.sentry.io`) |
 | `--no-dry-run` | No | Actually perform reassignment (default is dry-run) |
 
 ### Getting Your Auth Token
@@ -54,33 +61,35 @@ python reassign_sentry_issues.py \
    - `project:write`
    - `org:read`
 
-### Finding Team and User IDs
+### Finding Your Project ID
+
+The script requires a numeric Project ID (not the project slug). Here's how to find it:
 
 #### Using Sentry Web Interface:
-1. **For Teams**: Navigate to Settings → Teams → Select a team → Check the URL or use the browser console to inspect the team object
-2. **For Users**: Navigate to Settings → Members → Select a user → Check the URL or use the browser console
+1. Navigate to **Settings → Projects → [Your Project]**
+2. The Project ID is shown in the project settings page
+3. Or check the URL when viewing the project - it often contains the project ID
 
 #### Using Sentry API:
 ```bash
-# List teams
+# List all projects in your organization
 curl -H "Authorization: Bearer YOUR_TOKEN" \
-  https://sentry.io/api/0/organizations/YOUR_ORG/teams/
-
-# List members
-curl -H "Authorization: Bearer YOUR_TOKEN" \
-  https://sentry.io/api/0/organizations/YOUR_ORG/members/
+  https://us.sentry.io/api/0/organizations/YOUR_ORG/projects/
 ```
+
+The response will include `"id": 123456` for each project.
 
 ### Query Examples
 
-| Query | Description |
-|-------|-------------|
-| `is:unresolved` | All unresolved issues |
-| `is:unresolved age:+30d` | Unresolved issues older than 30 days |
-| `is:unresolved age:+7d assigned:me` | Your unresolved issues older than 7 days |
-| `is:ignored age:+90d` | Ignored issues older than 90 days |
-| `is:unresolved level:error` | Unresolved error-level issues |
-| `is:unresolved firstSeen:>2024-01-01` | Unresolved issues first seen after Jan 1, 2024 |
+| Query | Description | Use Case |
+|-------|-------------|----------|
+| `is:unresolved` | All unresolved issues | Check all active issues for misalignments |
+| `is:unresolved assigned:@team` | Unresolved issues assigned to any team | Focus on team-assigned issues only |
+| `is:unresolved lastSeen:>2024-01-01` | Issues with recent events after Jan 1 | Target issues with recent activity |
+| `is:unresolved age:+30d` | Unresolved issues older than 30 days | Focus on older, still-active issues |
+| `is:unresolved level:error` | Unresolved error-level issues | Prioritize high-severity issues |
+
+**Recommended Query**: `is:unresolved assigned:@team` - This focuses on issues currently assigned to teams, which is what the script processes.
 
 For more query syntax, see [Sentry's search documentation](https://docs.sentry.io/product/sentry-basics/search/).
 
@@ -88,74 +97,94 @@ For more query syntax, see [Sentry's search documentation](https://docs.sentry.i
 
 ### 1. Dry Run (Preview Only)
 
-Preview which issues would be reassigned without making any changes:
+Preview which issues have misaligned assignments without making any changes:
 
 ```bash
 python reassign_sentry_issues.py \
   --token YOUR_AUTH_TOKEN \
   --org my-org \
-  --project my-project \
-  --query "is:unresolved age:+30d" \
-  --assignee "team:123456"
+  --project-id 123456 \
+  --query "is:unresolved" \
+  --stats-period "30d"
 ```
 
 **Output:**
 ```
-======================================================================
-Sentry Issue Reassignment
-======================================================================
+================================================================================
+Sentry CODEOWNERS Issue Reassignment
+================================================================================
 Organization: my-org
-Project: my-project
-Query: is:unresolved age:+30d
-Assignee: team:123456
+Project ID: 123456
+Query: is:unresolved
+Stats Period: 30d
 Mode: DRY RUN
-======================================================================
+================================================================================
 
-Fetching issues...
+Fetching issues with owner information...
 
 Fetching page 1...
   Retrieved 100 issues (total so far: 100)
 Fetching page 2...
   Retrieved 45 issues (total so far: 145)
 
-======================================================================
+================================================================================
 Found 145 issue(s) matching the query
-======================================================================
+================================================================================
 
-Sample of issues to be reassigned:
-  1. MYPROJECT-ABC - TypeError: Cannot read property 'foo' of undefined
-     Status: unresolved, Count: 234, Users: 56
-  2. MYPROJECT-XYZ - ReferenceError: bar is not defined
-     Status: unresolved, Count: 89, Users: 12
-  ... and 143 more issue(s)
+Analyzing assignment alignment with CODEOWNERS...
 
+================================================================================
+Analysis Summary:
+  Total issues checked: 145
+  Misaligned issues (need reassignment): 23
+  Correctly aligned issues: 122
+================================================================================
+
+Sample of misaligned issues (showing up to 10):
+
+  1. Issue: MYPROJECT-ABC - TypeError: Cannot read property 'foo' of undefined
+     Short ID: MYPROJECT-1
+     Current assignment: team:111111
+     CODEOWNERS assignment: team:222222
+     Status: unresolved, Events: 234
+
+  2. Issue: MYPROJECT-XYZ - ReferenceError: bar is not defined
+     Short ID: MYPROJECT-2
+     Current assignment: team:111111
+     CODEOWNERS assignment: team:333333
+     Status: unresolved, Events: 89
+
+  ... and 21 more misaligned issue(s)
+
+================================================================================
 DRY RUN MODE: No changes will be made.
-Would reassign 145 issue(s) to team:123456
+Would reassign 23 issue(s) to match CODEOWNERS
+================================================================================
 ```
 
 ### 2. Actual Reassignment
 
-Perform the actual reassignment:
+Perform the actual reassignment to align with CODEOWNERS:
 
 ```bash
 python reassign_sentry_issues.py \
   --token YOUR_AUTH_TOKEN \
   --org my-org \
-  --project my-project \
-  --query "is:unresolved age:+30d" \
-  --assignee "team:123456" \
+  --project-id 123456 \
+  --query "is:unresolved" \
+  --stats-period "30d" \
   --no-dry-run
 ```
 
-### 3. Assign to a Specific User
+### 3. Check Only Team-Assigned Issues
 
 ```bash
 python reassign_sentry_issues.py \
   --token YOUR_AUTH_TOKEN \
   --org my-org \
-  --project my-project \
-  --query "is:unresolved assigned:[me] age:+60d" \
-  --assignee "user:789012" \
+  --project-id 123456 \
+  --query "is:unresolved assigned:@team" \
+  --stats-period "7d" \
   --no-dry-run
 ```
 
@@ -165,19 +194,34 @@ python reassign_sentry_issues.py \
 python reassign_sentry_issues.py \
   --token YOUR_AUTH_TOKEN \
   --org my-org \
-  --project my-project \
+  --project-id 123456 \
   --query "is:unresolved" \
-  --assignee "team:123456" \
+  --stats-period "14d" \
   --base-url "https://sentry.mycompany.com" \
   --no-dry-run
 ```
 
+## How It Works
+
+The script automatically:
+1. Fetches issues matching your query with CODEOWNERS information (`expand=owners`)
+2. For each issue assigned to a team, compares the current team assignment with the CODEOWNERS team
+3. Identifies misalignments where `assignedTo.id` ≠ CODEOWNERS team ID
+4. Reassigns misaligned issues to the correct team per CODEOWNERS
+
+**Note**: The script only processes issues currently assigned to teams. It will not reassign:
+- Unassigned issues
+- Issues assigned to individual users
+- Issues where current team matches CODEOWNERS team
+- Issues without CODEOWNERS definitions
+
 ## Workflow Recommendations
 
-1. **Always start with a dry run** to verify the query matches the expected issues
-2. **Test with a limited query** first (e.g., add `age:+365d` to limit to very old issues)
-3. **Review the sample output** to ensure you're targeting the right issues
+1. **Always start with a dry run** to see which issues are misaligned
+2. **Review the analysis summary** to understand the scope of misalignments
+3. **Check the sample output** to verify the reassignments make sense
 4. **Run with `--no-dry-run`** only after confirming the dry run output
+5. **Use appropriate stats-period** to focus on issues with recent events
 
 ## Error Handling
 
