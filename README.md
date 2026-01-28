@@ -18,12 +18,52 @@ This script addresses **Case #2**: Issues that report new events post-CODEOWNERS
 - 📊 **Detailed Analysis** - Shows alignment statistics and misalignment details
 - ⚠️ **Error handling** - Graceful error handling with detailed error messages
 
-## Installation
+## Quick Start
 
-1. Clone or download this repository
-2. Install dependencies:
+### 1. Setup (First Time Only)
 
 ```bash
+# Clone the repository
+git clone https://github.com/serglom21/issue-reassignment-script.git
+cd issue-reassignment-script
+
+# Run setup to create virtual environment and install dependencies
+./setup.sh
+```
+
+### 2. Run the Script
+
+```bash
+# Dry run to check for misalignments
+./run.sh \
+  --token YOUR_AUTH_TOKEN \
+  --org your-org-slug \
+  --project-id 123456 \
+  --query "is:unresolved assigned:@team" \
+  --stats-period "30d"
+
+# Actually fix misalignments
+./run.sh \
+  --token YOUR_AUTH_TOKEN \
+  --org your-org-slug \
+  --project-id 123456 \
+  --query "is:unresolved assigned:@team" \
+  --stats-period "30d" \
+  --no-dry-run
+```
+
+See [INSTALL.md](INSTALL.md) for detailed installation instructions and troubleshooting.
+
+## Manual Installation
+
+If you prefer manual setup:
+
+1. Clone or download this repository
+2. Create virtual environment and install dependencies:
+
+```bash
+python3 -m venv venv
+source venv/bin/activate  # On Windows: source venv/Scripts/activate
 pip install -r requirements.txt
 ```
 
