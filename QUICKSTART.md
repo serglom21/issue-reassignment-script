@@ -106,6 +106,7 @@ This issue is assigned to team `111111` but CODEOWNERS says it should be `222222
 | `--query` | Filter which issues to check | `"is:unresolved"` | `"is:unresolved assigned:@team"` |
 | `--stats-period` | Time window for issue events | `"90d"` | `"7d"`, `"14d"`, `"30d"` |
 | `--automatically-assigned` | Only process auto-assigned issues | Process all | (flag, no value) |
+| `--output-file` | Save full list to JSON file | No file | `output.json` |
 | `--no-dry-run` | Actually make changes | Dry-run mode | (flag, no value) |
 
 ---
@@ -132,7 +133,10 @@ The script detects how each issue was assigned:
    - `"7d"` - Focus on very recent issues
    - `"30d"` - Broader scope (recommended)
    - `"90d"` - Very old issues
-5. **Check the sample output** before running with `--no-dry-run`
+5. **Use `--output-file`** to save all issues to JSON for detailed review
+   - Terminal only shows first 10 issues
+   - JSON file contains all issues with full details
+6. **Check the sample output** before running with `--no-dry-run`
 
 ---
 
@@ -184,4 +188,20 @@ After updating CODEOWNERS, some issues might still be assigned to the old (wrong
 ./run.sh --token abc123 --org my-company --project-id 456789 --automatically-assigned --no-dry-run
 
 # Done! ✓
+```
+
+### Workflow 3: Generate Report with Full Details
+```bash
+# Generate a JSON file with all misaligned issues (not just first 10)
+./run.sh --token abc123 --org my-company --project-id 456789 \
+  --output-file misaligned_issues.json
+
+# Review the JSON file
+cat misaligned_issues.json | jq '.total_misaligned_issues'
+
+# Optional: View specific issue details
+cat misaligned_issues.json | jq '.issues[] | select(.manually_assigned == true)'
+
+# Then fix them
+./run.sh --token abc123 --org my-company --project-id 456789 --no-dry-run
 ```

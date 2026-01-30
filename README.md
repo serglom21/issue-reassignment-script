@@ -116,6 +116,7 @@ python reassign_sentry_issues.py \
 | `--base-url` | No | Sentry base URL (default: `https://us.sentry.io`) |
 | `--no-dry-run` | No | Actually perform reassignment (default is dry-run) |
 | `--automatically-assigned` | No | Only process automatically assigned issues (exclude manual assignments) |
+| `--output-file` | No | Save full list of all misaligned issues to a JSON file (e.g., `output.json`) |
 
 ### Getting Your Auth Token
 
@@ -273,7 +274,27 @@ python reassign_sentry_issues.py \
 
 This is useful when you want to fix auto-assignments but preserve manual assignments.
 
-### 5. Using Self-Hosted Sentry
+### 5. Save Full Output to File
+
+Save all misaligned issues (not just the first 10 shown in terminal) to a JSON file:
+
+```bash
+python reassign_sentry_issues.py \
+  --token YOUR_AUTH_TOKEN \
+  --org my-org \
+  --project-id 123456 \
+  --output-file misaligned_issues.json
+```
+
+The JSON file includes:
+- Full list of all misaligned issues (no limit)
+- Issue details: ID, title, status, event count, dates, permalink
+- Assignment info: current team, CODEOWNERS team, manual/auto flag
+- Summary statistics
+
+**Tip:** Use this to review all issues before running with `--no-dry-run`, or to generate reports.
+
+### 6. Using Self-Hosted Sentry
 
 ```bash
 python reassign_sentry_issues.py \
