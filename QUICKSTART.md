@@ -105,21 +105,34 @@ This issue is assigned to team `111111` but CODEOWNERS says it should be `222222
 |--------|-------------|---------|---------|
 | `--query` | Filter which issues to check | `"is:unresolved"` | `"is:unresolved assigned:@team"` |
 | `--stats-period` | Time window for issue events | `"90d"` | `"7d"`, `"14d"`, `"30d"` |
+| `--automatically-assigned` | Only process auto-assigned issues | Process all | (flag, no value) |
 | `--no-dry-run` | Actually make changes | Dry-run mode | (flag, no value) |
 
 ---
 
+## 🧑 vs 🤖 Manual vs Automatic Assignment
+
+The script detects how each issue was assigned:
+
+- **🧑 Manual**: A person assigned it → Won't auto-correct, needs fixing
+- **🤖 Automatic**: System assigned it → Would fix on next event, but you can fix now
+
+**Use case:**
+- Default: Fix all misaligned issues
+- `--automatically-assigned`: Only fix auto-assigned issues (leave manual alone)
+
 ## 💡 Pro Tips
 
 1. **Always start with a dry run** to preview changes
-2. **Use specific queries** to target specific issues:
+2. **Review the assignment breakdown** to decide if you want to filter
+3. **Use specific queries** to target specific issues:
    - `"is:unresolved assigned:@team"` - Only team-assigned issues
    - `"is:unresolved lastSeen:>2024-01-01"` - Recent activity only
-3. **Adjust stats-period** based on your needs:
+4. **Adjust stats-period** based on your needs:
    - `"7d"` - Focus on very recent issues
    - `"30d"` - Broader scope (recommended)
    - `"90d"` - Very old issues
-4. **Check the sample output** before running with `--no-dry-run`
+5. **Check the sample output** before running with `--no-dry-run`
 
 ---
 
@@ -143,8 +156,9 @@ After updating CODEOWNERS, some issues might still be assigned to the old (wrong
 
 ---
 
-## 📝 Example Workflow
+## 📝 Example Workflows
 
+### Workflow 1: Fix All Misaligned Issues
 ```bash
 # 1. Setup (first time only)
 ./setup.sh
@@ -152,8 +166,22 @@ After updating CODEOWNERS, some issues might still be assigned to the old (wrong
 # 2. Preview what would change (using defaults)
 ./run.sh --token abc123 --org my-company --project-id 456789
 
-# 3. Review output, then fix misalignments
+# 3. Review output, then fix all misalignments
 ./run.sh --token abc123 --org my-company --project-id 456789 --no-dry-run
+
+# Done! ✓
+```
+
+### Workflow 2: Fix Only Auto-Assigned Issues
+```bash
+# 1. Setup (first time only)
+./setup.sh
+
+# 2. Preview auto-assigned misalignments only
+./run.sh --token abc123 --org my-company --project-id 456789 --automatically-assigned
+
+# 3. Fix only automatically assigned issues
+./run.sh --token abc123 --org my-company --project-id 456789 --automatically-assigned --no-dry-run
 
 # Done! ✓
 ```
