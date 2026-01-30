@@ -81,7 +81,14 @@ class SentryIssueReassigner:
             print(f"  Retrieved {len(issues)} issues (total so far: {len(all_issues)})", file=sys.stderr)
             
             # Check for next page in Link header
-            url = self._get_next_page_url(response.headers.get('Link', ''))
+            link_header = response.headers.get('Link', '')
+            url = self._get_next_page_url(link_header)
+            
+            if url:
+                print(f"  Next page found, continuing...", file=sys.stderr)
+            else:
+                print(f"  No more pages", file=sys.stderr)
+            
             page += 1
             
             # Clear params for subsequent requests (URL already contains them)
@@ -102,14 +109,26 @@ class SentryIssueReassigner:
         if not link_header:
             return None
         
+        # Parse Link header: <url>; rel="next"; results="true"
         links = link_header.split(',')
+        
+        # First pass: look for rel="next" with results="true"
         for link in links:
-            parts = link.strip().split(';')
-            if len(parts) == 2:
-                url = parts[0].strip()[1:-1]  # Remove < and >
-                rel = parts[1].strip()
-                if 'rel="next"' in rel and 'results="true"' in rel:
-                    return url
+            if 'rel="next"' in link and 'results="true"' in link:
+                # Extract URL between < and >
+                url_start = link.find('<') + 1
+                url_end = link.find('>')
+                if url_start > 0 and url_end > url_start:
+                    return link[url_start:url_end]
+        
+        # Second pass: if not found, just look for rel="next"
+        for link in links:
+            if 'rel="next"' in link:
+                # Extract URL between < and >
+                url_start = link.find('<') + 1
+                url_end = link.find('>')
+                if url_start > 0 and url_end > url_start:
+                    return link[url_start:url_end]
         
         return None
     
