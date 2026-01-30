@@ -10,6 +10,8 @@ Supports pagination and includes a dry-run mode.
 import argparse
 import sys
 import requests
+import json
+from datetime import datetime
 from typing import List, Dict, Optional, Tuple
 from urllib.parse import urljoin, urlparse, parse_qs
 
@@ -240,6 +242,52 @@ class SentryIssueReassigner:
         
         return False, current_assignment, codeowners_assignment
     
+    def _save_issues_to_file(self, misaligned_issues: List[Dict], output_file: str) -> None:
+        """
+        Save all misaligned issues to a file.
+        
+        Args:
+            misaligned_issues: List of misaligned issue dictionaries
+            output_file: Path to output file
+        """
+        try:
+            timestamp = datetime.now().isoformat()
+            output_data = {
+                'generated_at': timestamp,
+                'organization': self.org_name,
+                'project_id': self.project_id,
+                'total_misaligned_issues': len(misaligned_issues),
+                'manually_assigned_count': sum(1 for item in misaligned_issues if item.get('manually_assigned')),
+                'automatically_assigned_count': sum(1 for item in misaligned_issues if not item.get('manually_assigned')),
+                'issues': []
+            }
+            
+            for item in misaligned_issues:
+                issue = item['issue']
+                output_data['issues'].append({
+                    'issue_id': issue.get('id'),
+                    'short_id': issue.get('shortId'),
+                    'title': issue.get('title'),
+                    'status': issue.get('status'),
+                    'event_count': issue.get('count', 0),
+                    'user_count': issue.get('userCount', 0),
+                    'first_seen': issue.get('firstSeen'),
+                    'last_seen': issue.get('lastSeen'),
+                    'permalink': issue.get('permalink'),
+                    'current_assignment': item['current_assignment'],
+                    'codeowners_assignment': item['codeowners_assignment'],
+                    'manually_assigned': item.get('manually_assigned', False),
+                    'assigned_by': item.get('assigned_by'),
+                })
+            
+            with open(output_file, 'w') as f:
+                json.dump(output_data, f, indent=2)
+            
+            print(f"\n✓ Full output saved to: {output_file}")
+            print(f"  Total issues in file: {len(misaligned_issues)}\n")
+        except Exception as e:
+            print(f"Warning: Could not save output to file: {e}", file=sys.stderr)
+    
     def reassign_issue(self, issue_id: str, assignee: str) -> bool:
         """
         Reassign a single issue to the specified team or user.
@@ -268,7 +316,7 @@ class SentryIssueReassigner:
             return False
     
     def reassign_issues(self, query: str, stats_period: str = "90d", dry_run: bool = True, 
-                        only_automatically_assigned: bool = False) -> tuple:
+                        only_automatically_assigned: bool = False, output_file: Optional[str] = None) -> tuple:
         """
         Reassign all issues that don't match their CODEOWNERS assignment.
         
@@ -277,6 +325,7 @@ class SentryIssueReassigner:
             stats_period: Stats period for the query
             dry_run: If True, only show what would be done without making changes
             only_automatically_assigned: If True, only process automatically assigned issues
+            output_file: Optional path to save full list of misaligned issues as JSON
             
         Returns:
             Tuple of (total_checked, misaligned_issues, successful_reassignments)
@@ -356,6 +405,10 @@ class SentryIssueReassigner:
         if len(misaligned_issues) == 0:
             print("✓ All issues are correctly aligned with CODEOWNERS!")
             return total_checked, 0, 0
+        
+        # Save full output to file if requested
+        if output_file:
+            self._save_issues_to_file(misaligned_issues, output_file)
         
         # Display sample of misaligned issues
         print(f"Sample of misaligned issues (showing up to 10):\n")
@@ -477,6 +530,13 @@ Examples:
     --project-id 123456 \\
     --automatically-assigned \\
     --no-dry-run
+  
+  # Save full output to a file for review
+  python reassign_sentry_issues.py \\
+    --token YOUR_AUTH_TOKEN \\
+    --org my-org \\
+    --project-id 123456 \\
+    --output-file misaligned_issues.json
 
 Query Examples:
   - "is:unresolved" - All unresolved issues
@@ -526,6 +586,10 @@ Query Examples:
         action='store_true',
         help='Only process issues that were automatically assigned (exclude manual assignments)'
     )
+    parser.add_argument(
+        '--output-file',
+        help='Save full list of all misaligned issues to a JSON file (e.g., output.json)'
+    )
     
     args = parser.parse_args()
     
@@ -543,7 +607,8 @@ Query Examples:
         query=args.query,
         stats_period=args.stats_period,
         dry_run=dry_run,
-        only_automatically_assigned=args.automatically_assigned
+        only_automatically_assigned=args.automatically_assigned,
+        output_file=args.output_file
     )
     
     # Exit with appropriate status code
