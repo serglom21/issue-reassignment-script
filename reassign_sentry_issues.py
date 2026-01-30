@@ -267,7 +267,8 @@ class SentryIssueReassigner:
                 print(f"  Response content: {e.response.text}", file=sys.stderr)
             return False
     
-    def reassign_issues(self, query: str, stats_period: str = "90d", dry_run: bool = True) -> tuple:
+    def reassign_issues(self, query: str, stats_period: str = "90d", dry_run: bool = True, 
+                        only_automatically_assigned: bool = False) -> tuple:
         """
         Reassign all issues that don't match their CODEOWNERS assignment.
         
@@ -275,6 +276,7 @@ class SentryIssueReassigner:
             query: Sentry search query string
             stats_period: Stats period for the query
             dry_run: If True, only show what would be done without making changes
+            only_automatically_assigned: If True, only process automatically assigned issues
             
         Returns:
             Tuple of (total_checked, misaligned_issues, successful_reassignments)
@@ -286,6 +288,7 @@ class SentryIssueReassigner:
         print(f"Project ID: {self.project_id}")
         print(f"Query: {query}")
         print(f"Stats Period: {stats_period}")
+        print(f"Filter: {'Only automatically assigned issues' if only_automatically_assigned else 'All misaligned issues'}")
         print(f"Mode: {'DRY RUN' if dry_run else 'LIVE'}")
         print(f"{'='*80}\n")
         
@@ -327,17 +330,27 @@ class SentryIssueReassigner:
                     'assigned_by': assigned_by
                 })
         
-        # Count manual vs automatic assignments
+        # Count before filtering
+        total_misaligned = len(misaligned_issues)
         manually_assigned_count = sum(1 for item in misaligned_issues if item.get('manually_assigned'))
-        auto_assigned_count = len(misaligned_issues) - manually_assigned_count
+        auto_assigned_count = total_misaligned - manually_assigned_count
+        
+        # Filter by assignment type if requested
+        if only_automatically_assigned:
+            misaligned_issues = [item for item in misaligned_issues if not item.get('manually_assigned')]
+            print(f"  Filtered to only automatically assigned issues: {len(misaligned_issues)} of {total_misaligned}", file=sys.stderr)
         
         print(f"{'='*80}")
         print(f"Analysis Summary:")
         print(f"  Total issues checked: {total_checked}")
-        print(f"  Misaligned issues (need reassignment): {len(misaligned_issues)}")
+        print(f"  Total misaligned issues found: {total_misaligned}")
         print(f"    - Manually assigned: {manually_assigned_count}")
         print(f"    - Automatically assigned: {auto_assigned_count}")
-        print(f"  Correctly aligned issues: {total_checked - len(misaligned_issues)}")
+        if only_automatically_assigned:
+            print(f"  Filtered to process: {len(misaligned_issues)} (automatically assigned only)")
+        else:
+            print(f"  Issues to process: {len(misaligned_issues)}")
+        print(f"  Correctly aligned issues: {total_checked - total_misaligned}")
         print(f"{'='*80}\n")
         
         if len(misaligned_issues) == 0:
@@ -418,15 +431,17 @@ def main():
 This script automatically detects and fixes assignment misalignments between
 current team assignments and CODEOWNERS definitions.
 
-It specifically handles case #2 from the assignment categories:
-"Issues that report a new event post changes to CODEOWNERS and were manually 
-assigned to the wrong team in the past"
+The script can handle:
+- Case #2: Issues manually assigned to the wrong team
+- Case #4: Issues automatically assigned to the wrong team
 
 The script will:
 1. Fetch all issues matching your query with owner information
 2. Compare current team assignments with CODEOWNERS assignments
 3. Identify misaligned issues (where assignedTo team != CODEOWNERS team)
-4. Reassign misaligned issues to match CODEOWNERS
+4. Detect if each issue was manually or automatically assigned
+5. Optionally filter to only automatically assigned issues (--automatically-assigned)
+6. Reassign misaligned issues to match CODEOWNERS
 
 Examples:
   # Dry run (default) - see what would be reassigned
@@ -453,6 +468,14 @@ Examples:
     --project-id 123456 \\
     --query "is:unresolved assigned:@team" \\
     --stats-period "7d" \\
+    --no-dry-run
+  
+  # Only reassign automatically assigned issues (exclude manual)
+  python reassign_sentry_issues.py \\
+    --token YOUR_AUTH_TOKEN \\
+    --org my-org \\
+    --project-id 123456 \\
+    --automatically-assigned \\
     --no-dry-run
 
 Query Examples:
@@ -498,6 +521,11 @@ Query Examples:
         action='store_true',
         help='Actually perform the reassignment (default is dry-run mode)'
     )
+    parser.add_argument(
+        '--automatically-assigned',
+        action='store_true',
+        help='Only process issues that were automatically assigned (exclude manual assignments)'
+    )
     
     args = parser.parse_args()
     
@@ -514,7 +542,8 @@ Query Examples:
     total_checked, misaligned, successful = reassigner.reassign_issues(
         query=args.query,
         stats_period=args.stats_period,
-        dry_run=dry_run
+        dry_run=dry_run,
+        only_automatically_assigned=args.automatically_assigned
     )
     
     # Exit with appropriate status code
