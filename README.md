@@ -4,9 +4,21 @@ A Python script to automatically align Sentry issue assignments with CODEOWNERS 
 
 ## Problem Solved
 
-This script addresses **Case #2**: Issues that report new events post-CODEOWNERS changes but were manually assigned to the wrong team in the past. The script:
+This script addresses assignment misalignments after CODEOWNERS changes:
+
+**Case #2**: Issues **manually** assigned to the wrong team
+- These won't auto-correct and need manual fixing
+- Script detects and can reassign these
+
+**Case #4**: Issues **automatically** assigned to the wrong team  
+- Would auto-correct on next event, but you can fix immediately
+- Use `--automatically-assigned` flag to target only these
+
+The script:
 - Compares current team assignments with CODEOWNERS definitions
 - Identifies misaligned issues (where `assignedTo` team ≠ CODEOWNERS team)
+- Detects if assignment was manual (by user) or automatic (by system)
+- Optionally filters to only auto-assigned issues
 - Automatically reassigns to the correct team per CODEOWNERS
 
 ## Features
@@ -103,6 +115,7 @@ python reassign_sentry_issues.py \
 | `--stats-period` | No | Stats period for the query (default: `90d`). Examples: `7d`, `14d`, `30d`, `90d` |
 | `--base-url` | No | Sentry base URL (default: `https://us.sentry.io`) |
 | `--no-dry-run` | No | Actually perform reassignment (default is dry-run) |
+| `--automatically-assigned` | No | Only process automatically assigned issues (exclude manual assignments) |
 
 ### Getting Your Auth Token
 
@@ -245,7 +258,22 @@ python reassign_sentry_issues.py \
   --no-dry-run
 ```
 
-### 4. Using Self-Hosted Sentry
+### 4. Only Reassign Automatically Assigned Issues
+
+Target only automatically assigned issues (Case #4), excluding manually assigned ones (Case #2):
+
+```bash
+python reassign_sentry_issues.py \
+  --token YOUR_AUTH_TOKEN \
+  --org my-org \
+  --project-id 123456 \
+  --automatically-assigned \
+  --no-dry-run
+```
+
+This is useful when you want to fix auto-assignments but preserve manual assignments.
+
+### 5. Using Self-Hosted Sentry
 
 ```bash
 python reassign_sentry_issues.py \
@@ -274,9 +302,13 @@ The script automatically:
 
 1. **Always start with a dry run** to see which issues are misaligned
 2. **Review the analysis summary** to understand the scope of misalignments
+   - See breakdown of manually vs automatically assigned issues
 3. **Check the sample output** to verify the reassignments make sense
-4. **Run with `--no-dry-run`** only after confirming the dry run output
-5. **Use appropriate stats-period** to focus on issues with recent events
+4. **Decide your target**:
+   - Process all misaligned issues (default)
+   - Or use `--automatically-assigned` to only fix auto-assigned issues
+5. **Run with `--no-dry-run`** only after confirming the dry run output
+6. **Use appropriate stats-period** to focus on issues with recent events
 
 ## Error Handling
 
