@@ -80,6 +80,11 @@ class SentryIssueReassigner:
             
             print(f"  Retrieved {len(issues)} issues (total so far: {len(all_issues)})", file=sys.stderr)
             
+            # Stop if we got 0 issues (empty page)
+            if len(issues) == 0:
+                print(f"  No more issues found, stopping pagination", file=sys.stderr)
+                break
+            
             # Check for next page in Link header
             link_header = response.headers.get('Link', '')
             url = self._get_next_page_url(link_header)
