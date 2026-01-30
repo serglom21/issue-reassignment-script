@@ -137,6 +137,50 @@ class SentryIssueReassigner:
         
         return None
     
+    def fetch_issue_details(self, issue_id: str) -> Optional[Dict]:
+        """
+        Fetch full issue details including activity history.
+        
+        Args:
+            issue_id: The issue ID
+            
+        Returns:
+            Issue details dictionary or None if error
+        """
+        url = f"{self.base_url}/api/0/organizations/{self.org_name}/issues/{issue_id}/"
+        
+        try:
+            response = self.session.get(url)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            print(f"  Warning: Could not fetch details for issue {issue_id}: {e}", file=sys.stderr)
+            return None
+    
+    def was_manually_assigned(self, issue_details: Dict) -> Tuple[bool, Optional[str]]:
+        """
+        Check if an issue was manually assigned by looking at activity history.
+        
+        Args:
+            issue_details: Full issue details including activity
+            
+        Returns:
+            Tuple of (was_manually_assigned, assigned_by_user_name)
+        """
+        activity = issue_details.get('activity', [])
+        
+        # Look for 'assigned' activity entries
+        for entry in activity:
+            if entry.get('type') == 'assigned':
+                user = entry.get('user')
+                # If user is not None and has actual user data, it was manually assigned
+                if user and isinstance(user, dict) and user.get('id'):
+                    user_name = user.get('name', user.get('email', 'Unknown'))
+                    return True, user_name
+        
+        # No manual assignment found in activity
+        return False, None
+    
     def get_codeowners_assignment(self, issue: Dict) -> Optional[str]:
         """
         Extract the CODEOWNERS assignment from an issue.
@@ -261,19 +305,38 @@ class SentryIssueReassigner:
         print("Analyzing assignment alignment with CODEOWNERS...\n")
         misaligned_issues = []
         
-        for issue in issues:
+        for i, issue in enumerate(issues, 1):
             needs_change, current, codeowners = self.needs_reassignment(issue)
             if needs_change:
+                issue_id = issue.get('id')
+                print(f"  [{i}/{total_checked}] Found misaligned issue {issue_id}, fetching details...", file=sys.stderr)
+                
+                # Fetch full issue details to check assignment history
+                issue_details = self.fetch_issue_details(issue_id)
+                
+                was_manual = False
+                assigned_by = None
+                if issue_details:
+                    was_manual, assigned_by = self.was_manually_assigned(issue_details)
+                
                 misaligned_issues.append({
                     'issue': issue,
                     'current_assignment': current,
-                    'codeowners_assignment': codeowners
+                    'codeowners_assignment': codeowners,
+                    'manually_assigned': was_manual,
+                    'assigned_by': assigned_by
                 })
+        
+        # Count manual vs automatic assignments
+        manually_assigned_count = sum(1 for item in misaligned_issues if item.get('manually_assigned'))
+        auto_assigned_count = len(misaligned_issues) - manually_assigned_count
         
         print(f"{'='*80}")
         print(f"Analysis Summary:")
         print(f"  Total issues checked: {total_checked}")
         print(f"  Misaligned issues (need reassignment): {len(misaligned_issues)}")
+        print(f"    - Manually assigned: {manually_assigned_count}")
+        print(f"    - Automatically assigned: {auto_assigned_count}")
         print(f"  Correctly aligned issues: {total_checked - len(misaligned_issues)}")
         print(f"{'='*80}\n")
         
@@ -285,8 +348,15 @@ class SentryIssueReassigner:
         print(f"Sample of misaligned issues (showing up to 10):\n")
         for i, item in enumerate(misaligned_issues[:10], 1):
             issue = item['issue']
+            manually_assigned = item.get('manually_assigned', False)
+            assigned_by = item.get('assigned_by')
+            
+            assignment_type = "🧑 MANUALLY" if manually_assigned else "🤖 AUTOMATICALLY"
+            assignment_info = f" by {assigned_by}" if assigned_by else ""
+            
             print(f"  {i}. Issue: {issue.get('id')} - {issue.get('title', 'No title')[:50]}")
             print(f"     Short ID: {issue.get('shortId', 'N/A')}")
+            print(f"     Assignment: {assignment_type} assigned{assignment_info}")
             print(f"     Current assignment: {item['current_assignment']}")
             print(f"     CODEOWNERS assignment: {item['codeowners_assignment']}")
             print(f"     Status: {issue.get('status', 'unknown')}, "
@@ -316,7 +386,10 @@ class SentryIssueReassigner:
             issue_title = issue.get('title', 'No title')[:40]
             new_assignee = item['codeowners_assignment']
             
-            print(f"  [{i}/{len(misaligned_issues)}] {issue_short_id}: {issue_title}")
+            manually_assigned = item.get('manually_assigned', False)
+            assignment_badge = "🧑" if manually_assigned else "🤖"
+            
+            print(f"  [{i}/{len(misaligned_issues)}] {assignment_badge} {issue_short_id}: {issue_title}")
             print(f"      {item['current_assignment']} → {new_assignee} ...", end=' ')
             
             if self.reassign_issue(issue_id, new_assignee):
